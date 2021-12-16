@@ -1,0 +1,418 @@
+---
+title: "Zadaca 2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dataPreparation)
+library(tidyverse)
+library(ggplot2)
+library(reshape2)
+library(PerformanceAnalytics)
+library(GGally)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(pROC)
+library(plyr)
+library(dplyr)
+library(ROSE)
+library(ipred)
+library(VIM)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+podaci <- read.csv("weather_data_train.csv", fileEncoding = 'UTF-8')
+```
+
+### **Priprema podataka**
+
+```{r}
+Location_not_na <- subset(podaci, is.na(Location) == FALSE)$Location
+MinTemp_not_na <- subset(podaci, is.na(MinTemp) == FALSE)$MinTemp
+MaxTemp_not_na <- subset(podaci, is.na(MaxTemp) == FALSE)$MaxTemp
+Rainfall_not_na <- subset(podaci, is.na(Rainfall) == FALSE)$Rainfall
+WindGustDir_not_na <- subset(podaci, is.na(WindGustDir) == FALSE)$WindGustDir
+WindGustSpeed_not_na <- subset(podaci, is.na(WindGustSpeed) == FALSE)$WindGustSpeed
+RainToday_not_na <- subset(podaci, is.na(RainToday) == FALSE)$RainToday
+Humidity9am_not_na <- subset(podaci, is.na(Humidity9am) == FALSE)$Humidity9am
+Cloud9am_not_na <- subset(podaci, is.na(Cloud9am) == FALSE)$Cloud9am
+Cloud5pm_not_na <- subset(podaci, is.na(Cloud5pm) == FALSE)$Cloud5pm
+Pressure9am_not_na <- subset(podaci, is.na(Pressure9am) == FALSE)$Pressure9am
+WindDir9am_not_na <- subset(podaci, is.na(WindDir9am) == FALSE)$WindDir9am
+WindDir3pm_not_na <- subset(podaci, is.na(WindDir3pm) == FALSE)$WindDir3pm
+RainTomorrow_not_na <- subset(podaci, is.na(RainTomorrow) == FALSE)$RainTomorrow
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone MinTemp
+podaci_stari <- podaci
+median <- median(MinTemp_not_na)
+for (i in 1 : length(podaci$MinTemp))
+{
+ if (is.na(podaci$MinTemp[i]) == TRUE)
+ {
+ podaci$MinTemp[i] <- median
+ }
+}
+boxplot(podaci_stari$MinTemp, podaci$MinTemp)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone MaxTemp
+podaci_stari <- podaci
+median <- median(MaxTemp_not_na)
+for (i in 1 : length(podaci$MaxTemp))
+{
+ if (is.na(podaci$MaxTemp[i]) == TRUE)
+ {
+ podaci$MaxTemp[i] <- median
+ }
+}
+
+#Boxplot nakon popunjavanja nedostajucih vrijednosti
+boxplot(podaci_stari$MaxTemp, podaci$MaxTemp)
+
+
+#Odbacivanje outlier-a za MaxTemp
+plot(podaci$MinTemp, podaci$MaxTemp)
+        
+median <- median(MaxTemp_not_na)
+for (i in 1 : 9)
+{
+ index_maximuma <- which.max(podaci$MaxTemp)
+ podaci$MaxTemp[index_maximuma] <- median
+ index_minimuma <- which.min(podaci$MaxTemp)
+ podaci$MaxTemp[index_minimuma] <- median
+}
+
+plot(podaci$MinTemp, podaci$MaxTemp)
+boxplot(podaci$MaxTemp)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone Rainfall
+podaci_stari <- podaci
+median <- median(Rainfall_not_na)
+for (i in 1 : length(podaci$Rainfall))
+{
+ if (is.na(podaci$Rainfall[i]) == TRUE)
+ {
+ podaci$Rainfall[i] <- median
+ }
+}
+boxplot(podaci_stari$Rainfall, podaci$Rainfall)
+
+#Odbacivanje outlier-a kolone Rainfall
+
+plot(podaci$Rainfall, podaci$MinTemp)
+
+median <- median(Rainfall_not_na)
+for (i in 1 : 50)
+{
+ index_maximuma <- which.max(podaci$Rainfall)
+ podaci$Rainfall[index_maximuma] <- median
+}
+
+plot(podaci$Rainfall, podaci$MinTemp)
+boxplot(podaci$Rainfall)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone WindGustSpeed
+podaci_stari <- podaci
+median <- median(WindGustSpeed_not_na)
+for (i in 1 : length(podaci$WindGustSpeed))
+{
+ if (is.na(podaci$WindGustSpeed[i]) == TRUE)
+ {
+ podaci$WindGustSpeed[i] <- median
+ }
+}
+boxplot(podaci_stari$WindGustSpeed, podaci$WindGustSpeed)
+
+
+#Odbacivanje outlier-a za WindGustSpeed
+plot(podaci$WindGustSpeed, podaci$MinTemp)
+
+median <- median(WindGustSpeed_not_na)
+for (i in 1 : 5)
+{
+ index_minimuma <- which.min(podaci$WindGustSpeed)
+ podaci$WindGustSpeed[index_minimuma] <- median
+}
+for (i in 1 : 50)
+{
+index_maximuma <- which.max(podaci$WindGustSpeed)
+ podaci$WindGustSpeed[index_maximuma] <- median
+}
+
+plot(podaci$WindGustSpeed, podaci$MinTemp)
+boxplot(podaci$WindGustSpeed)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone Humidity9am
+podaci_stari <- podaci
+median <- median(Humidity9am_not_na)
+for (i in 1 : length(podaci$Humidity9am))
+{
+ if (is.na(podaci$Humidity9am[i]) == TRUE)
+ {
+ podaci$Humidity9am[i] <- median
+ }
+}
+boxplot(podaci_stari$Humidity9am, podaci$Humidity9am)
+
+plot(podaci$Humidity9am, podaci$MinTemp)
+
+#Odbacivanje outlier-a za Humidity9am
+median <- median(Humidity9am_not_na)
+
+for (i in 1 : 50)
+{
+ index_minimuma <- which.min(podaci$Humidity9am)
+ podaci$Humidity9am[index_minimuma] <- median
+}
+
+plot(podaci$Humidity9am, podaci$MinTemp)
+boxplot(podaci$Humidity9am)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone Cloud9am
+podaci_stari <- podaci
+median <- median(Cloud9am_not_na)
+for (i in 1 : length(podaci$Cloud9am))
+{
+ if (is.na(podaci$Cloud9am[i]) == TRUE)
+ {
+ podaci$Cloud9am[i] <- median
+ }
+}
+boxplot(podaci_stari$Cloud9am, podaci$Cloud9am)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone Pressure9am
+podaci_stari <- podaci
+median <- median(Pressure9am_not_na)
+for (i in 1 : length(podaci$Pressure9am))
+{
+ if (is.na(podaci$Pressure9am[i]) == TRUE)
+ {
+ podaci$Pressure9am[i] <- median
+ }
+}
+boxplot(podaci_stari$Pressure9am, podaci$Pressure9am)
+
+#Odbacivanje outlier-a za Pressure9am
+plot(podaci$Pressure9am, podaci$MinTemp)
+
+median <- median(Pressure9am_not_na)
+
+for (i in 1 : 30)
+{
+ index_minimuma <- which.min(podaci$Pressure9am)
+ podaci$Pressure9am[index_minimuma] <- median
+}
+
+for (i in 1 : 20)
+{
+ index_maximuma <- which.max(podaci$Pressure9am)
+ podaci$Pressure9am[index_maximuma] <- median
+}
+
+plot(podaci$Pressure9am, podaci$MinTemp)
+boxplot(podaci$Pressure9am)
+```
+
+```{r}
+#Zamjena nedostajucih vrijednosti kolone Cloud5pm
+podaci_stari <- podaci
+median <- median(Cloud5pm_not_na)
+for (i in 1 : length(podaci$Cloud5pm))
+{
+ if (is.na(podaci$Cloud5pm[i]) == TRUE)
+ {
+ podaci$Cloud5pm[i] <- median
+ }
+}
+boxplot(podaci_stari$Cloud5pm, podaci$Cloud5pm)
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+```
+
+```{r}
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+```
+
+```{r}
+ #Popunjavanje nedostajucih vrijednosti kolone Location
+ podaci$Location[is.na(podaci$Location)] = getmode(Location_not_na)
+ 
+  #Popunjavanje nedostajucih vrijednosti kolone WindGustDir
+ podaci$WindGustDir[is.na(podaci$WindGustDir)] = getmode(WindGustDir_not_na)
+ 
+  #Popunjavanje nedostajucih vrijednosti kolone RainToday
+ podaci$RainToday[is.na(podaci$RainToday)] = getmode(RainToday_not_na)
+ 
+ #Popunjavanje nedostajucih vrijednosti kolone WindDir9am
+ podaci$WindDir9am[is.na(podaci$WindDir9am)] = getmode(WindDir9am_not_na)
+ 
+ #Popunjavanje nedostajucih vrijednosti kolone WindDir3pm
+ podaci$WindDir3pm[is.na(podaci$WindDir3pm)] = getmode(WindDir3pm_not_na)
+```
+
+```{r}
+#Odbacivanje varijabli sa visokim stepenom korelacije
+podaci <- select(podaci, -MaxTemp, -Cloud5pm)
+```
+
+```{r}
+#normalizacija podataka
+
+max <- max(podaci$Pressure9am)
+min <- min(podaci$Pressure9am)
+podaci <- mutate(podaci, Pressure9am = (Pressure9am - min) / (max - min))
+```
+
+### **Podjela podataka na trening i testni set**
+
+```{r}
+#Pretvaranje kategorickih varijabli u faktorske
+
+
+podaci$WindGustDir <- factor(podaci$WindGustDir)
+podaci$WindDir9am <- factor(podaci$WindDir9am)
+podaci$WindDir3pm <- factor(podaci$WindDir3pm)
+podaci$RainToday <- factor(podaci$RainToday)
+podaci$RainTomorrow <- factor(podaci$RainTomorrow)
+```
+
+```{r}
+#Podjela dataset-a na trening i testni skup
+
+set.seed(2222)
+rows <- sample(nrow(podaci))
+podaci <- podaci[rows, ]
+
+end <- length(podaci$Location)
+n <- as.integer(0.80 * end)
+podaci_train <- podaci[1 : n, ]
+podaci_test <- podaci[(n + 1) : end, ]
+```
+
+### Modeli klasifikacije
+
+```{r}
+draw_confusion_matrix <- function(cm)
+{
+ columns <- colnames(cm$table)
+ rows <- rownames(cm$table)
+ layout(matrix(c(1,1,2)))
+ par(mar=c(2,2,2,2))
+ plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n',
+yaxt='n')
+ title('CONFUSION MATRIX', cex.main=2)
+ rect(150, 430, 240, 370, col='#3F97D0')
+ text(195, 435, columns[1], cex=1.2)
+ rect(250, 430, 340, 370, col='#F7AD50')
+ text(295, 435, columns[2], cex=1.2)
+ text(125, 370, 'Predicted', cex=1.3, srt=90, font=2)
+ text(245, 450, 'Actual', cex=1.3, font=2)
+ rect(150, 305, 240, 365, col='#F7AD50')
+ rect(250, 305, 340, 365, col='#3F97D0')
+ text(140, 400, rows[1], cex=1.2, srt=90)
+ text(140, 335, rows[2], cex=1.2, srt=90)
+ res <- as.numeric(cm$table)
+ text(195, 400, res[1], cex=1.6, font=2, col='white')
+ text(195, 335, res[2], cex=1.6, font=2, col='white')
+ text(295, 400, res[3], cex=1.6, font=2, col='white')
+ text(295, 335, res[4], cex=1.6, font=2, col='white')
+ plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main =
+"DETAILS", xaxt='n', yaxt='n')
+ text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+ text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+ text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+ text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+ text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+ text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+ text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+ text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+ text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+ text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+ text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+ text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+ text(70, 35, names(cm$overall[2]), cex=1.5, font=2)
+ text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

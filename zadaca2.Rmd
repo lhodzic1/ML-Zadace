@@ -362,8 +362,7 @@ yaxt='n')
 }
 ```
 
-```{r}
-```
+### **KNN model predikcije**
 
 ```{r}
 ```
@@ -371,8 +370,7 @@ yaxt='n')
 ```{r}
 ```
 
-```{r}
-```
+### **Naivni Bayes**
 
 ```{r}
 ```
@@ -380,7 +378,36 @@ yaxt='n')
 ```{r}
 ```
 
+### **Model logističke regresije**
+
 ```{r}
+#Pretvaranje kategorickih varijabli sa statičkim nivoima u faktorske
+
+podaci$WindGustDir <- factor(podaci$WindGustDir)
+podaci$WindDir9am <- factor(podaci$WindDir9am)
+podaci$WindDir3pm <- factor(podaci$WindDir3pm)
+podaci$RainToday <- factor(podaci$RainToday)
+podaci$RainTomorrow <- factor(podaci$RainTomorrow)
+
+#Lokacija ima promjenljiv broj nivoa
+podaci$Location <- as.numeric(factor(podaci$Location))
+```
+
+```{r}
+#Kreiranje modela
+model <- glm(formula = RainTomorrow ~ ., data = podaci_train, family = binomial(link = "logit"))
+predictions <- predict(model, newdata = subset(podaci_test, select = -
+c(RainTomorrow)), type= "response")
+predictions[predictions > 0.5] <- "Yes"
+predictions[predictions <= 0.5] <- "No"
+predictions <- factor(predictions, levels = c("No", "Yes"))
+cm <- confusionMatrix(data = predictions, reference = podaci_test$RainTomorrow)
+cat("Accuracy:", cm$overall[1])
+```
+
+```{r}
+# konfuzijska matrica
+draw_confusion_matrix(cm)
 ```
 
 ```{r}

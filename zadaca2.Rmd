@@ -20,6 +20,9 @@ library(dplyr)
 library(ROSE)
 library(ipred)
 library(VIM)
+library(class)
+library(e1071)
+library(neuralnet)
 ```
 
 ## R Markdown
@@ -365,9 +368,18 @@ yaxt='n')
 ### **KNN model predikcije**
 
 ```{r}
+#Priprema podataka
+podaci_train_knn <- select(podaci_train, -Location, -WindGustDir, -RainToday, -WindDir9am, -WindDir3pm)
+podaci_test_knn <- select(podaci_test, -Location, -WindGustDir, -RainToday, -WindDir9am, -WindDir3pm)
 ```
 
 ```{r}
+#Kreiranje modela
+predictions <- knn(train = subset(podaci_train_knn, select = -c(RainTomorrow)),
+ test = subset(podaci_test_knn, select = -c(RainTomorrow)),
+ cl = podaci_train_knn$RainTomorrow, k = 15)
+cm <- confusionMatrix(data = predictions, reference = podaci_test_knn$RainTomorrow)
+draw_confusion_matrix(cm)
 ```
 
 ### **Naivni Bayes**
@@ -409,26 +421,101 @@ cat("Accuracy:", cm$overall[1])
 # konfuzijska matrica
 draw_confusion_matrix(cm)
 ```
+### **SVM model klasifikacije**
 
 ```{r}
+library(e1071)
+model <- svm(formula = RainTomorrow ~ ., data = podaci_train, kernel = "linear")
+predictions <- predict(model, newdata = subset(podaci_test, select = -
+c(RainTomorrow)))
+cm <- confusionMatrix(data = predictions, reference = podaci_test$RainTomorrow)
+cat("Accuracy:", cm$overall[1])
+
 ```
 
 ```{r}
+# konfuzijska matrica
+draw_confusion_matrix(cm)
+```
+
+### **Model klasifikacije koji koristi neuralne mreže**
+
+```{r}
+# priprema podataka
+podaci$WindGustDir <- as.numeric(factor(podaci$WindGustDir))
+podaci$WindDir9am <- as.numeric(factor(podaci$WindDir9am))
+podaci$WindDir3pm <- as.numeric(factor(podaci$WindDir3pm))
+podaci$RainToday <- as.numeric(factor(podaci$RainToday))
+podaci$RainTomorrow <- as.numeric(factor(podaci$RainTomorrow))
+podaci$Location <- as.numeric(factor(podaci$Location))
 ```
 
 ```{r}
+# normalizacija podataka
+podaci$RainTomorrow[podaci$RainTomorrow == "1"] <- 0
+podaci$RainTomorrow[podaci$RainTomorrow == "2"] <- 1
+preObj <- preProcess(subset(podaci, select = -c(RainTomorrow)),
+method=c("range"), rangebounds = c(0, 1))
+class <- podaci$RainTomorrow
+podaci <- predict(preObj, subset(podaci, select = -c(RainTomorrow)))
+podaci$RainTomorrow <- class
+
+# podjela na trening i testni skup
+rows <- sample(nrow(podaci))
+podaci <- podaci[rows, ]
+end <- length(podaci$RainTomorrow)
+n <- as.integer(0.8 * end)
+podaci_train <- podaci[1 : n, ]
+podaci_test <- podaci[(n + 1) : end, ]
 ```
 
 ```{r}
+# Multiple-layers model
+library(neuralnet)
+model_multiple_layers <- neuralnet(formula = RainTomorrow ~ .,
+ data = podaci_train,
+ linear.output = F,
+ err.fct = "ce",
+ hidden = c(2, 1),
+ lifesign = "minimal")
+plot(model_multiple_layers)
 ```
 
 ```{r}
+cat("Error for 2 neurons in 1st and 1 neuron in 2nd layer:",
+model_multiple_layers$result.matrix[1, 1])
 ```
 
 ```{r}
-```
+train_accuracy <- function(model)
+{
+ result <- model$net.result
+ predictions <- result[[length(result)]]
 
-```{r}
+ predictions[predictions > 0.5] <- 1
+ predictions[predictions <= 0.5] <- 0
+ predictions <- factor(predictions)
+ cm <- confusionMatrix(data = predictions, reference =
+factor(podaci_train$RainTomorrow))
+ cat("Train accuracy:", cm$overall[1], "\n")
+}
+
+train_accuracy(model_multiple_layers)
+
+test_accuracy <- function(model)
+{
+ predictions <- compute(model, subset(podaci_test, select = -c(RainTomorrow)))
+ predictions <- predictions$net.result
+
+ predictions[predictions > 0.5] <- 1
+ predictions[predictions <= 0.5] <- 0
+ predictions <- factor(predictions)
+ cm <- confusionMatrix(data = predictions, reference =
+factor(podaci_test$RainTomorrow))
+ cat("Test accuracy:", cm$overall[1], "\n")
+}
+
+test_accuracy(model_multiple_layers)
 ```
 
 ```{r}

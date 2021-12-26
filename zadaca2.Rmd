@@ -23,6 +23,7 @@ library(VIM)
 library(class)
 library(e1071)
 library(neuralnet)
+library(caTools)
 ```
 
 ## R Markdown
@@ -382,9 +383,28 @@ cm <- confusionMatrix(data = predictions, reference = podaci_test_knn$RainTomorr
 draw_confusion_matrix(cm)
 ```
 
-### **Naivni Bayes**
+### **Naivni Bayesov model predikcije**
 
 ```{r}
+# Feature Scaling DA LI TREBA???
+#train_scale <- scale(podaci_train[, 1:4])
+#test_scale <- scale(podaci_test[, 1:4])
+ 
+# Fitting Naive Bayes Model
+# to training dataset
+set.seed(120)  # Setting Seed
+classifier_cl <- naiveBayes(RainTomorrow ~ ., data = podaci_train)
+classifier_cl
+ 
+# Predicting on test data'
+y_pred <- predict(classifier_cl, newdata = podaci_test)
+ 
+# Confusion Matrix
+cm <- table(podaci_test$RainTomorrow, y_pred)
+ 
+# Model Evaluation
+cm = confusionMatrix(cm)
+draw_confusion_matrix(cm)
 ```
 
 ```{r}

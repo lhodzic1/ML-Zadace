@@ -1,0 +1,7 @@
+- knn?
+- neuralne mreže?
+- ROC kriva
+- neuralne mreze k-fold 10 iteracija
+
+
+* za tuning hiperparametara napraviti nove modele

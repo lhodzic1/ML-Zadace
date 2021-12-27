@@ -34,6 +34,7 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r}
 podaci <- read.csv("weather_data_train.csv", fileEncoding = 'UTF-8')
+podaci <- podaci[-c(70, 550), ]
 ```
 
 ### **Priprema podataka**
@@ -320,6 +321,48 @@ podaci_train <- podaci[1 : n, ]
 podaci_test <- podaci[(n + 1) : end, ]
 ```
 
+### Balansiranje podataka
+
+```{r}
+#podaci_stari <- podaci
+
+hist(as.numeric(podaci$RainTomorrow))
+
+#oversampling
+
+oversample <- ovun.sample(RainTomorrow ~ ., data = podaci, method = "both",
+N = 2500, p=0.4)$data
+
+hist(as.numeric(oversample$RainTomorrow))
+
+podaci <- oversample
+```
+
+```{r}
+#Pretvaranje kategorickih varijabli u faktorske
+
+
+podaci$WindGustDir <- factor(podaci$WindGustDir)
+podaci$WindDir9am <- factor(podaci$WindDir9am)
+podaci$WindDir3pm <- factor(podaci$WindDir3pm)
+podaci$RainToday <- factor(podaci$RainToday)
+podaci$RainTomorrow <- factor(podaci$RainTomorrow)
+
+#Podjela dataset-a na trening i testni skup
+
+set.seed(2222)
+rows <- sample(nrow(podaci))
+podaci <- podaci[rows, ]
+
+end <- length(podaci$Location)
+n <- as.integer(0.80 * end)
+podaci_train <- podaci[1 : n, ]
+podaci_test <- podaci[(n + 1) : end, ]
+```
+
+```{r}
+```
+
 ### Modeli klasifikacije
 
 ```{r}
@@ -381,6 +424,115 @@ predictions <- knn(train = subset(podaci_train_knn, select = -c(RainTomorrow)),
  cl = podaci_train_knn$RainTomorrow, k = 15)
 cm <- confusionMatrix(data = predictions, reference = podaci_test_knn$RainTomorrow)
 draw_confusion_matrix(cm)
+
+#ROC kriva
+```
+
+#### Cross validacija
+
+```{r}
+# Pomocna funkcija za KNN
+
+kfold_knn <- function(podaci, k)
+{
+ folds <- split(podaci, cut(sample(1 : nrow(podaci)), k))
+ acc <- rep(NA, length(folds))
+ kappa <- rep(NA, length(folds))
+
+ for (i in 1:length(folds))
+ {
+   test <- subset(ldply(folds[i], data.frame), select = -c(.id))
+   train <- subset(ldply(folds[-i], data.frame), select = -c(.id))
+   
+   predictions <- knn(train = subset(train, select = -c(RainTomorrow)),
+ test = subset(test, select = -c(RainTomorrow)),
+ cl = train$RainTomorrow, k = 15)
+  
+  prediction <- factor(predictions)
+  cm <- confusionMatrix(data = prediction, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+
+# Pomocna funkcija za k-fold bootstrapping za knn
+
+bootstrap_knn <- function(podaci, k)
+{
+ acc <- rep(NA, k)
+ kappa <- rep(NA, k)
+ B <- as.integer(length(podaci$RainTomorrow) / k)
+ for (i in 1:k)
+ {
+ test <- podaci[sample(nrow(podaci), size = B), ]
+   train <- podaci[sample(nrow(podaci), size = length(podaci$RainTomorrow) -B), ]
+   
+    
+   predictions <- knn(train = subset(train, select = -c(RainTomorrow)),
+ test = subset(test, select = -c(RainTomorrow)),
+ cl = train$RainTomorrow, k = 15)
+  
+   predictions <- factor(predictions)
+   
+   cm <- confusionMatrix(data = predictions, reference = test$RainTomorrow)
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+```
+
+```{r}
+list <- kfold_knn(select(podaci, -Location, -WindGustDir, -RainToday, -WindDir9am, -WindDir3pm), 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- kfold_knn(select(podaci, -Location, -WindGustDir, -RainToday, -WindDir9am, -WindDir3pm), 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
+list <- bootstrap_knn(select(podaci, -Location, -WindGustDir, -RainToday, -WindDir9am, -WindDir3pm), 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- bootstrap_knn(select(podaci, -Location, -WindGustDir, -RainToday, -WindDir9am, -WindDir3pm), 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
 ```
 
 ### **Naivni Bayesov model predikcije**
@@ -405,6 +557,121 @@ cm <- table(podaci_test$RainTomorrow, y_pred)
 # Model Evaluation
 cm = confusionMatrix(cm)
 draw_confusion_matrix(cm)
+```
+
+```{r}
+#ROC kriva
+#roc <- roc(podaci_test$RainTomorrow, y_pred[, 2], percent = TRUE)
+
+#plot(roc$specificities, roc$sensitivities, type="l", lwd = 2, col ="blue",
+#xlim = c(100, 0), ylim = c(0, 100))
+#abline(coef = c(100, -1), col = "gray60")
+```
+
+#### Cross validacija
+
+```{r}
+# Pomocna funkcija za naivni bayes
+
+kfold_bayes <- function(podaci, k)
+{
+ folds <- split(podaci, cut(sample(1 : nrow(podaci)), k))
+ acc <- rep(NA, length(folds))
+ kappa <- rep(NA, length(folds))
+
+ for (i in 1:length(folds))
+ {
+   test <- subset(ldply(folds[i], data.frame), select = -c(.id))
+   train <- subset(ldply(folds[-i], data.frame), select = -c(.id))
+   
+   set.seed(120)  # Setting Seed
+  classifier_cl <- naiveBayes(RainTomorrow ~ ., data = train)
+ 
+  # Predicting on test data'
+  y_pred <- predict(classifier_cl, newdata = test)
+   
+  cm <- confusionMatrix(data = y_pred, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+
+# Pomocna funkcija za k-fold bootstrapping za bayes
+
+bootstrap_bayes <- function(podaci, k)
+{
+ acc <- rep(NA, k)
+ kappa <- rep(NA, k)
+ B <- as.integer(length(podaci$RainTomorrow) / k)
+ for (i in 1:k)
+ {
+ test <- podaci[sample(nrow(podaci), size = B), ]
+   train <- podaci[sample(nrow(podaci), size = length(podaci$RainTomorrow) -B), ]
+   
+    
+    set.seed(120)  # Setting Seed
+  classifier_cl <- naiveBayes(RainTomorrow ~ ., data = train)
+ 
+  # Predicting on test data'
+  y_pred <- predict(classifier_cl, newdata = test)
+   
+  cm <- confusionMatrix(data = y_pred, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+```
+
+```{r}
+list <- kfold_bayes(podaci, 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- kfold_bayes(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
+list <- bootstrap_bayes(podaci, 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- bootstrap_bayes(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
 ```
 
 ```{r}
@@ -440,10 +707,126 @@ cat("Accuracy:", cm$overall[1])
 ```{r}
 # konfuzijska matrica
 draw_confusion_matrix(cm)
+
+#ROC kriva
+#prediction <- predict(model, podaci_test, type = "response")
+#roc <- roc(podaci_test$RainTomorrow, prediction[, 2], percent = TRUE)
+
+#plot(roc$specificities, roc$sensitivities, type="l", lwd = 2, col ="blue",
+#xlim = c(100, 0), ylim = c(0, 100))
+#abline(coef = c(100, -1), col = "gray60")
 ```
+
+```{r}
+# Pomocna funkcija za model logističke regresije
+
+kfold_logistic <- function(podaci, k)
+{
+ folds <- split(podaci, cut(sample(1 : nrow(podaci)), k))
+ acc <- rep(NA, length(folds))
+ kappa <- rep(NA, length(folds))
+
+ for (i in 1:length(folds))
+ {
+   test <- subset(ldply(folds[i], data.frame), select = -c(.id))
+   train <- subset(ldply(folds[-i], data.frame), select = -c(.id))
+   
+   model <- glm(formula = RainTomorrow ~ ., data = train, family = binomial(link = "logit"))
+predictions <- predict(model, newdata = subset(test, select = -c(RainTomorrow)), type= "response")
+  predictions[predictions > 0.5] <- "Yes"
+  predictions[predictions <= 0.5] <- "No"
+  predictions <- factor(predictions, levels = c("No", "Yes"))
+  cm <- confusionMatrix(data = predictions, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+
+# Pomocna funkcija za k-fold bootstrapping za bayes
+
+bootstrap_logistic <- function(podaci, k)
+{
+ acc <- rep(NA, k)
+ kappa <- rep(NA, k)
+ B <- as.integer(length(podaci$RainTomorrow) / k)
+ for (i in 1:k)
+ {
+ test <- podaci[sample(nrow(podaci), size = B), ]
+   train <- podaci[sample(nrow(podaci), size = length(podaci$RainTomorrow) -B), ]
+    
+    
+   model <- glm(formula = RainTomorrow ~ ., data = train, family = binomial(link = "logit"))
+predictions <- predict(model, newdata = subset(test, select = -c(RainTomorrow)), type= "response")
+  predictions[predictions > 0.5] <- "Yes"
+  predictions[predictions <= 0.5] <- "No"
+  predictions <- factor(predictions, levels = c("No", "Yes"))
+  cm <- confusionMatrix(data = predictions, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+```
+
+```{r}
+list <- kfold_logistic(podaci, 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- kfold_logistic(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
+list <- bootstrap_logistic(podaci, 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- bootstrap_logistic(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
+```
+
 ### **SVM model klasifikacije**
 
 ```{r}
+#lokacija mora u numericke
+
 library(e1071)
 model <- svm(formula = RainTomorrow ~ ., data = podaci_train, kernel = "linear")
 predictions <- predict(model, newdata = subset(podaci_test, select = -
@@ -456,6 +839,113 @@ cat("Accuracy:", cm$overall[1])
 ```{r}
 # konfuzijska matrica
 draw_confusion_matrix(cm)
+#ROC kriva
+#prediction <- predict(model, podaci_test, type = "response")
+#roc <- roc(podaci_test$RainTomorrow, predictions[, 2], percent = TRUE)
+
+#plot(roc$specificities, roc$sensitivities, type="l", lwd = 2, col ="blue",
+#xlim = c(100, 0), ylim = c(0, 100))
+#abline(coef = c(100, -1), col = "gray60")
+```
+
+#### Cross validacija
+
+```{r}
+# Pomocna funkcija za model svm
+
+kfold_svm <- function(podaci, k)
+{
+ folds <- split(podaci, cut(sample(1 : nrow(podaci)), k))
+ acc <- rep(NA, length(folds))
+ kappa <- rep(NA, length(folds))
+
+ for (i in 1:length(folds))
+ {
+   test <- subset(ldply(folds[i], data.frame), select = -c(.id))
+   train <- subset(ldply(folds[-i], data.frame), select = -c(.id))
+   
+  model <- svm(formula = RainTomorrow ~ ., data = train, kernel = "linear")
+predictions <- predict(model, newdata = subset(test, select = -c(RainTomorrow)))
+cm <- confusionMatrix(data = predictions, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+
+# Pomocna funkcija za k-fold bootstrapping za svm
+
+bootstrap_svm <- function(podaci, k)
+{
+ acc <- rep(NA, k)
+ kappa <- rep(NA, k)
+ B <- as.integer(length(podaci$RainTomorrow) / k)
+ for (i in 1:k)
+ {
+ test <- podaci[sample(nrow(podaci), size = B), ]
+   train <- podaci[sample(nrow(podaci), size = length(podaci$RainTomorrow) -B), ]
+   
+  model <- svm(formula = RainTomorrow ~ ., data = train, kernel = "linear")
+predictions <- predict(model, newdata = subset(test, select = -c(RainTomorrow)))
+cm <- confusionMatrix(data = predictions, reference = test$RainTomorrow)
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+```
+
+```{r}
+list <- kfold_svm(podaci, 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- kfold_svm(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
+list <- bootstrap_svm(podaci, 10)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- bootstrap_svm(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
 ```
 
 ### **Model klasifikacije koji koristi neuralne mreže**
@@ -498,7 +988,7 @@ model_multiple_layers <- neuralnet(formula = RainTomorrow ~ .,
  err.fct = "ce",
  hidden = c(2, 1),
  lifesign = "minimal")
-plot(model_multiple_layers)
+#plot(model_multiple_layers)
 ```
 
 ```{r}
@@ -536,6 +1026,118 @@ factor(podaci_test$RainTomorrow))
 }
 
 test_accuracy(model_multiple_layers)
+```
+
+#### Cross validacija
+
+```{r}
+# Pomocna funkcija za model svm
+
+kfold_neural <- function(podaci, k)
+{
+ folds <- split(podaci, cut(sample(1 : nrow(podaci)), k))
+ acc <- rep(NA, length(folds))
+ kappa <- rep(NA, length(folds))
+
+ for (i in 1:length(folds))
+ {
+   test <- subset(ldply(folds[i], data.frame), select = -c(.id))
+   train <- subset(ldply(folds[-i], data.frame), select = -c(.id))
+   
+  model_multiple_layers <- neuralnet(formula = RainTomorrow ~ ., data = train, linear.output = F, err.fct = "ce", hidden = c(2, 1), lifesign = "minimal")
+  
+ predictions <- compute(model_multiple_layers, subset(test, select = -c(RainTomorrow)))
+ predictions <- predictions$net.result
+
+ predictions[predictions > 0.5] <- 1
+ predictions[predictions <= 0.5] <- 0
+ predictions <- factor(predictions)
+ cm <- confusionMatrix(data = predictions, reference = factor(test$RainTomorrow))
+  
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+
+# Pomocna funkcija za k-fold bootstrapping za svm
+
+bootstrap_neural <- function(podaci, k)
+{
+ acc <- rep(NA, k)
+ kappa <- rep(NA, k)
+ B <- as.integer(length(podaci$RainTomorrow) / k)
+ for (i in 1:k)
+ {
+ test <- podaci[sample(nrow(podaci), size = B), ]
+   train <- podaci[sample(nrow(podaci), size = length(podaci$RainTomorrow) -B), ]
+    
+  model_multiple_layers <- neuralnet(formula = RainTomorrow ~ ., data = train, linear.output = F, err.fct = "ce", hidden = c(2, 1), lifesign = "minimal")
+  
+ predictions <- compute(model_multiple_layers, subset(test, select = -c(RainTomorrow)))
+ predictions <- predictions$net.result
+
+ predictions[predictions > 0.5] <- 1
+ predictions[predictions <= 0.5] <- 0
+ predictions <- factor(predictions)
+ cm <- confusionMatrix(data = predictions, reference = factor(test$RainTomorrow))
+ 
+   acc[i] <- cm$overall[1]
+   kappa[i] <- cm$overall[2]
+ }
+ list <- list("acc" = acc, "kappa" = kappa)
+ return (list)
+}
+```
+
+```{r}
+list <- kfold_neural(podaci, 3)
+acc <- list$acc
+kappa <- list$kappa
+cat("10-fold validacija\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+#list <- kfold_neural(podaci, 5)
+#acc <- list$acc
+#kappa <- list$kappa
+#cat("5-fold validacija\n")
+#cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+#cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+#cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+#cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+#cat("Srednja tačnost:", sum(acc) / length(acc))
+#cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
+#list <- bootstrap_neural(podaci, 10)
+#acc <- list$acc
+#kappa <- list$kappa
+#cat("10-fold bootstrap\n")
+#cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+#cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+#cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+#cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+#cat("Srednja tačnost:", sum(acc) / length(acc))
+#cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+list <- bootstrap_neural(podaci, 5)
+acc <- list$acc
+kappa <- list$kappa
+cat("5-fold bootstrap\n")
+cat("Najveća tačnost:", max(acc), ", fold:", which.max(acc))
+cat(", najveća kappa:", max(kappa), ", fold:", which.max(kappa), "\n")
+cat("Najmanja tačnost:", min(acc), ", fold:", which.min(acc))
+cat(", najmanja kappa:", min(kappa), ", fold:", which.min(kappa), "\n")
+cat("Srednja tačnost:", sum(acc) / length(acc))
+cat(", srednja kappa:", sum(kappa) / length(kappa), "\n\n")
+```
+
+```{r}
 ```
 
 ```{r}

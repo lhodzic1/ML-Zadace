@@ -1,0 +1,196 @@
+Location_not_na <- subset(podaci, is.na(Location) == FALSE)$Location
+MinTemp_not_na <- subset(podaci, is.na(MinTemp) == FALSE)$MinTemp
+MaxTemp_not_na <- subset(podaci, is.na(MaxTemp) == FALSE)$MaxTemp
+Rainfall_not_na <- subset(podaci, is.na(Rainfall) == FALSE)$Rainfall
+WindGustDir_not_na <- subset(podaci, is.na(WindGustDir) == FALSE)$WindGustDir
+WindGustSpeed_not_na <- subset(podaci, is.na(WindGustSpeed) == FALSE)$WindGustSpeed
+RainToday_not_na <- subset(podaci, is.na(RainToday) == FALSE)$RainToday
+Humidity9am_not_na <- subset(podaci, is.na(Humidity9am) == FALSE)$Humidity9am
+Cloud9am_not_na <- subset(podaci, is.na(Cloud9am) == FALSE)$Cloud9am
+Cloud5pm_not_na <- subset(podaci, is.na(Cloud5pm) == FALSE)$Cloud5pm
+Pressure9am_not_na <- subset(podaci, is.na(Pressure9am) == FALSE)$Pressure9am
+WindDir9am_not_na <- subset(podaci, is.na(WindDir9am) == FALSE)$WindDir9am
+WindDir3pm_not_na <- subset(podaci, is.na(WindDir3pm) == FALSE)$WindDir3pm
+RainTomorrow_not_na <- subset(podaci, is.na(RainTomorrow) == FALSE)$RainTomorrow
+
+#Zamjena nedostajucih vrijednosti kolone MinTemp
+podaci_stari <- podaci
+median <- median(MinTemp_not_na)
+for (i in 1 : length(podaci$MinTemp))
+{
+ if (is.na(podaci$MinTemp[i]) == TRUE)
+ {
+ podaci$MinTemp[i] <- median
+ }
+}
+
+#Zamjena nedostajucih vrijednosti kolone MaxTemp
+podaci_stari <- podaci
+median <- median(MaxTemp_not_na)
+for (i in 1 : length(podaci$MaxTemp))
+{
+ if (is.na(podaci$MaxTemp[i]) == TRUE)
+ {
+ podaci$MaxTemp[i] <- median
+ }
+}
+
+
+#Odbacivanje outlier-a za MaxTemp
+        
+median <- median(MaxTemp_not_na)
+for (i in 1 : 9)
+{
+ index_maximuma <- which.max(podaci$MaxTemp)
+ podaci$MaxTemp[index_maximuma] <- median
+ index_minimuma <- which.min(podaci$MaxTemp)
+ podaci$MaxTemp[index_minimuma] <- median
+}
+
+#Zamjena nedostajucih vrijednosti kolone Rainfall
+podaci_stari <- podaci
+median <- median(Rainfall_not_na)
+for (i in 1 : length(podaci$Rainfall))
+{
+ if (is.na(podaci$Rainfall[i]) == TRUE)
+ {
+ podaci$Rainfall[i] <- median
+ }
+}
+
+#Odbacivanje outlier-a kolone Rainfall
+
+
+median <- median(Rainfall_not_na)
+for (i in 1 : 50)
+{
+ index_maximuma <- which.max(podaci$Rainfall)
+ podaci$Rainfall[index_maximuma] <- median
+}
+
+
+#Zamjena nedostajucih vrijednosti kolone WindGustSpeed
+podaci_stari <- podaci
+median <- median(WindGustSpeed_not_na)
+for (i in 1 : length(podaci$WindGustSpeed))
+{
+ if (is.na(podaci$WindGustSpeed[i]) == TRUE)
+ {
+ podaci$WindGustSpeed[i] <- median
+ }
+}
+
+
+#Odbacivanje outlier-a za WindGustSpeed
+
+median <- median(WindGustSpeed_not_na)
+for (i in 1 : 5)
+{
+ index_minimuma <- which.min(podaci$WindGustSpeed)
+ podaci$WindGustSpeed[index_minimuma] <- median
+}
+for (i in 1 : 50)
+{
+index_maximuma <- which.max(podaci$WindGustSpeed)
+ podaci$WindGustSpeed[index_maximuma] <- median
+}
+
+
+#Zamjena nedostajucih vrijednosti kolone Humidity9am
+podaci_stari <- podaci
+median <- median(Humidity9am_not_na)
+for (i in 1 : length(podaci$Humidity9am))
+{
+ if (is.na(podaci$Humidity9am[i]) == TRUE)
+ {
+ podaci$Humidity9am[i] <- median
+ }
+}
+
+#Odbacivanje outlier-a za Humidity9am
+median <- median(Humidity9am_not_na)
+
+for (i in 1 : 50)
+{
+ index_minimuma <- which.min(podaci$Humidity9am)
+ podaci$Humidity9am[index_minimuma] <- median
+}
+
+#Zamjena nedostajucih vrijednosti kolone Cloud9am
+podaci_stari <- podaci
+median <- median(Cloud9am_not_na)
+for (i in 1 : length(podaci$Cloud9am))
+{
+ if (is.na(podaci$Cloud9am[i]) == TRUE)
+ {
+ podaci$Cloud9am[i] <- median
+ }
+}
+
+#Zamjena nedostajucih vrijednosti kolone Pressure9am
+podaci_stari <- podaci
+median <- median(Pressure9am_not_na)
+for (i in 1 : length(podaci$Pressure9am))
+{
+ if (is.na(podaci$Pressure9am[i]) == TRUE)
+ {
+ podaci$Pressure9am[i] <- median
+ }
+}
+
+#Odbacivanje outlier-a za Pressure9am
+
+median <- median(Pressure9am_not_na)
+
+for (i in 1 : 30)
+{
+ index_minimuma <- which.min(podaci$Pressure9am)
+ podaci$Pressure9am[index_minimuma] <- median
+}
+
+for (i in 1 : 20)
+{
+ index_maximuma <- which.max(podaci$Pressure9am)
+ podaci$Pressure9am[index_maximuma] <- median
+}
+
+#Zamjena nedostajucih vrijednosti kolone Cloud5pm
+podaci_stari <- podaci
+median <- median(Cloud5pm_not_na)
+for (i in 1 : length(podaci$Cloud5pm))
+{
+ if (is.na(podaci$Cloud5pm[i]) == TRUE)
+ {
+ podaci$Cloud5pm[i] <- median
+ }
+}
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+ #Popunjavanje nedostajucih vrijednosti kolone Location
+ podaci$Location[is.na(podaci$Location)] = getmode(Location_not_na)
+ 
+  #Popunjavanje nedostajucih vrijednosti kolone WindGustDir
+ podaci$WindGustDir[is.na(podaci$WindGustDir)] = getmode(WindGustDir_not_na)
+ 
+  #Popunjavanje nedostajucih vrijednosti kolone RainToday
+ podaci$RainToday[is.na(podaci$RainToday)] = getmode(RainToday_not_na)
+ 
+ #Popunjavanje nedostajucih vrijednosti kolone WindDir9am
+ podaci$WindDir9am[is.na(podaci$WindDir9am)] = getmode(WindDir9am_not_na)
+ 
+ #Popunjavanje nedostajucih vrijednosti kolone WindDir3pm
+ podaci$WindDir3pm[is.na(podaci$WindDir3pm)] = getmode(WindDir3pm_not_na)
+
+#Odbacivanje varijabli sa visokim stepenom korelacije
+podaci <- select(podaci, -MaxTemp, -Cloud5pm)
+
+#normalizacija podataka
+
+max <- max(podaci$Pressure9am)
+min <- min(podaci$Pressure9am)
+podaci <- mutate(podaci, Pressure9am = (Pressure9am - min) / (max - min))
+

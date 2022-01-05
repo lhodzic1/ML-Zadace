@@ -2194,6 +2194,213 @@ weather_data_test <- mutate(weather_data_test, Pressure9am = (Pressure9am - min)
 test_accuracy_test(model_multiple_layers)
 ```
 
+## Zadatak 2
+
+```{r}
+podaci$WeatherStability = -1
+
+for (i in 1:length(podaci$Rainfall)) {
+  k = 3
+  if (podaci[i,]$Cloud9am < 5) {
+    k = 1
+  } else if (podaci[i,]$Cloud9am >= 5 && podaci[i,]$Cloud9am <= 10) {
+    k = 2
+  }
+  vrijednost <- (podaci[i,]$Humidity9am - k)/(max(podaci$Humidity9am) - k)
+  
+  if (podaci[i,]$WindDir9am != podaci[i,]$WindDir3pm && podaci[i,]$Pressure9am > 1010 && podaci[i,]$Rainfall>= 4 && podaci[i,]$Rainfall <= 10 && podaci[i,]$RainToday == "Yes") {
+    podaci[i,]$WeatherStability <- vrijednost
+  } else {
+    k = 3
+    if (podaci[i,]$Cloud5pm < 5) {
+      k = 1
+    } else if (podaci[i,]$Cloud5pm >= 5 && podaci[i,]$Cloud5pm <= 10) {
+      k = 2
+    }
+    vrijednost <- (podaci[i,]$Pressure9am - k)/(max(podaci$Pressure9am) - k)
+  
+    podaci[i,]$WeatherStability <- vrijednost
+  }
+}
+
+podaci[podaci$WindGustSpeed > 60 & (podaci$MinTemp < 5 | podaci$MaxTemp > 39 & podaci$RainTomorrow == "Yes"),]$WeatherStability <- 0
+
+#podaci[podaci$WindGustSpeed < 5 & podaci$Rainfall < 5 & podaci$MaxTemp - podaci$MinTemp < 4 & #podaci$RainTomorrow == "No",]$WeatherStability <- 1
+```
+
+### Kreiranje modela 
+
+```{r}
+#podjela podataka na trening i testne
+podaci$WindGustDir <- factor(podaci$WindGustDir)
+podaci$WindDir9am <- factor(podaci$WindDir9am)
+podaci$WindDir3pm <- factor(podaci$WindDir3pm)
+podaci$RainToday <- factor(podaci$RainToday)
+podaci$RainTomorrow <- factor(podaci$RainTomorrow)
+
+set.seed(2222)
+rows <- sample(nrow(podaci))
+podaci <- podaci[rows, ]
+
+end <- length(podaci$Location)
+n <- as.integer(0.80 * end)
+podaci_train <- podaci[1 : n, ]
+podaci_test <- podaci[(n + 1) : end, ]
+```
+
+```{r}
+model <- svm(formula = WeatherStability ~ ., data = podaci_train)
+predictions <- predict(model, newdata = subset(podaci_test, select = -c(WeatherStability)))
+
+plot(podaci_test$WeatherStability, podaci_test$MinTemp)
+points(predictions, podaci_test$MinTemp, col = "red", pch = 16)
+#podaci$Location <- factor(podaci$Location)
+plot(podaci_test$WeatherStability, podaci_test$Pressure9am)
+points(predictions, podaci_test$Pressure9am, col = "blue", pch = 16)
+```
+
+### Testiranje modela
+
+```{r}
+library(Metrics)
+
+RMSE <- rmse(podaci_test$WeatherStability, predictions)
+cat("RMSE:", RMSE, "\n")
+
+predictions <- predict(model, newdata = subset(podaci_test, select = -c(WeatherStability)))
+r2 = R2(podaci_test$WeatherStability, predictions, form = "traditional")
+
+cat("R2:", r2, "\n")
+
+mae_metrika <- mae(podaci_test$WeatherStability, predictions)
+cat("MAE: ", mae_metrika, "\n")
+```
+
+### Tuning modela
+
+```{r}
+# Tuning hiperparametara
+podaci$WindGustDir <- as.numeric(podaci$WindGustDir)
+podaci$WindDir9am <- as.numeric(podaci$WindDir9am)
+podaci$WindDir3pm <- as.numeric(podaci$WindDir3pm)
+podaci$RainToday <- as.numeric(podaci$RainToday)
+podaci$RainTomorrow <- as.numeric(podaci$RainTomorrow)
+podaci$Location <- as.numeric(factor(podaci$Location))
+
+tuning <- tune.svm(formula = WeatherStability ~ .,
+ x = subset(podaci, select = -c(WeatherStability)),
+ y = podaci$WeatherStability,
+ cost = c(1, 5, 10, 25, 50), gamma = c(0.001, 0.01,
+0.1, 1))
+
+cat("Najbolja vrijednost cost:", tuning$best.parameters$cost, "\n")
+cat("Najbolja vrijednost gamma:", tuning$best.parameters$gamma, "\n")
+cat("Najmanja RMSE:", tuning$best.performance)
+plot(tuning)
+```
+
+### Prikaz unapređenja modela
+
+```{r}
+best <- svm(formula = WeatherStability ~ ., data = podaci_train, cost = 25, gamma = 0.1)
+predictions_best <- predict(best, newdata = subset(podaci_test, select =-c(WeatherStability)))
+
+plot(podaci_test$WeatherStability, podaci_test$MinTemp, pch = 16)
+points(predictions, podaci_test$MinTemp, col = "red", pch = 3)
+points(predictions_best, podaci_test$MinTemp, col = "blue", pch = 4)
+
+RMSE <- rmse(podaci_test$WeatherStability, predictions_best)
+cat("RMSE:", RMSE, "\n")
+
+r2 = R2(podaci_test$WeatherStability, predictions_best, form = "traditional")
+cat("R2:", r2, "\n")
+
+mae_metrika <- mae(podaci_test$WeatherStability, predictions_best)
+cat("MAE: ", mae_metrika, "\n")
+```
+
+### Ensamble tehnike - bagging
+
+```{r}
+# pomocna funkcija za bagging
+predict_bagging <- function(podaci, podaci_test, lista,  k) {
+
+  predictions_bagging <- c()
+  
+  for (i in 1:length(podaci_test$WeatherStability)) {
+    suma <- 0
+    
+    for (j in 1:k) {
+      suma <- suma + lista[j][[1]][i]
+    }
+    
+    predictions_bagging <- append(predictions_bagging, suma/k)
+  }
+  
+  return(predictions_bagging)
+}
+
+# pomocna funkcija za svm bagging
+begging_svm <- function(podaci, podaci_test, k)
+{
+ lista <- vector(mode = "list", length = 0)
+ #lista <- list(, 0)
+  
+ B <- as.integer(length(podaci$WeatherStability) / k)
+ for (i in 1:k)
+ {
+   train_data <- podaci[sample(nrow(podaci), size = length(podaci$WeatherStability) -B), ]
+
+ model <- svm(formula = WeatherStability ~ ., data = train_data, cost = 25, gamma = 0.1)
+ 
+  predictions_best <- predict(model, newdata = subset(podaci_test, select =-c(WeatherStability)))
+   
+   lista <- append(lista, list(predictions_best))
+   
+ }
+
+ return (lista)
+}
+```
+
+```{r}
+lista_svm <- begging_svm(podaci, podaci_test, 30)
+pred <- predict_bagging(podaci, podaci_test, lista_svm, 30)
+
+RMSE <- rmse(podaci_test$WeatherStability, pred)
+cat("RMSE:", RMSE, "\n")
+
+r2 = R2(podaci_test$WeatherStability, pred, form = "traditional")
+cat("R2:", r2, "\n")
+
+mae_metrika <- mae(podaci_test$WeatherStability, pred)
+cat("MAE: ", mae_metrika, "\n")
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
 ## Including Plots
 
 You can also embed plots, for example:

@@ -8,10 +8,6 @@
 
 * tuning ne konvergira
 
-- poslikat SMOTE cross validaciju i bagging
-
 1.b
-JA SUTRA: perceptron i perceptron vise rep, perceptron vise neurona (osnova), sve SMOTE
+JA SUTRA: perceptron i perceptron vise rep, perceptron vise neurona (osnova), neuralne sve (smote)
 
-
-Logisticka ne radi sa SMOTE

@@ -2201,10 +2201,10 @@ weather_data_test$Location <- as.numeric(factor(weather_data_test$Location))
 
 ##svm i naivni bayes
 
-prediction <- predict(model, newdata = subset(weather_data_test, select = -c(RainTomorrow)))
+#prediction <- predict(model, newdata = subset(weather_data_test, select = -c(RainTomorrow)))
 
-cm <- confusionMatrix(prediction, weather_data_test$RainTomorrow, positive = 'Yes')
-draw_confusion_matrix(cm)
+#cm <- confusionMatrix(prediction, weather_data_test$RainTomorrow, positive = 'Yes')
+#draw_confusion_matrix(cm)
 
 #####logisticka
 #predictions <- predict(model, newdata = subset(weather_data_test, select = -
@@ -2223,7 +2223,12 @@ draw_confusion_matrix(cm)
 #draw_confusion_matrix(cm)
 
 #neuralne
-#test_accuracy_test(model_multiple_layers)
+test_accuracy_test(model_one_rep)
+
+#prediction <- predict(model_one_rep, newdata = subset(weather_data_test, select = -c(RainTomorrow)))
+
+#cm <- confusionMatrix(prediction, weather_data_test$RainTomorrow, positive = 'Yes')
+#draw_confusion_matrix(cm)
 ```
 
 ## Zadatak 2

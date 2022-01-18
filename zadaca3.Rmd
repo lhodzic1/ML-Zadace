@@ -1,0 +1,929 @@
+---
+title: "zadaca3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(cluster)
+library(factoextra)
+library(funtimes)
+library(amap)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+podaci <- read.csv("ObesityDataSet.csv", fileEncoding = 'UTF-8')
+```
+
+# Zadatak 1 - Prototip-bazirani klastering
+
+## a) Analiziranje seta podataka
+
+### Tipovi podataka
+
+```{r}
+#Dimenzije seta podataka
+cat("Dimenzije podataka: ", dim(podaci), "\n\n")
+
+#Tipovi varijabli
+cat("Tipovi varijabli:\n")
+sapply(podaci, class)
+cat('\n')
+```
+
+```{r}
+#Sazete informacije o svim varijablama
+summary(podaci)
+```
+
+```{r}
+cat("Broj instanci koje imaju NA vrijednosti u bilo kojem redu:\n",
+length(subset(podaci, (is.na(Gender) | is.na(Age) | is.na(Height) | is.na(Weight) | is.na(family_history_with_overweight) | is.na(FAVC) | is.na(FCVC) | is.na(NCP) | is.na(CAEC) | is.na(SMOKE) | is.na(CH2O) | is.na(SCC) | is.na(FAF)) | is.na(TUE) | is.na(CALC) | is.na(MTRANS) | is.na(NObeyesdad) )$NObeyesdad ))
+```
+
+```{r}
+#Kategoričke varijable
+
+gender_factor <- factor(podaci$Gender)
+podaci$Gender <- gender_factor
+cat("Broj kategorija varijable Gender: ", nlevels(gender_factor), "\n")
+cat("Kategorije varijable Location: ", levels(gender_factor), "\n\n")
+
+family_history_with_overweight_factor <- factor(podaci$family_history_with_overweight)
+podaci$family_history_with_overweight <- family_history_with_overweight_factor
+cat("Broj kategorija varijable family_history_with_overweigh: ", nlevels(family_history_with_overweight_factor), "\n")
+cat("Kategorije varijable family_history_with_overweigh: ", levels(family_history_with_overweight_factor), "\n\n")
+
+FAVC_factor <- factor(podaci$FAVC)
+podaci$FAVC <- FAVC_factor
+cat("Broj kategorija varijable FAVC: ", nlevels(FAVC_factor), "\n")
+cat("Kategorije varijable FAVC: ", levels(FAVC_factor), "\n\n")
+
+CAEC_factor <- factor(podaci$CAEC)
+podaci$CAEC <- CAEC_factor
+cat("Broj kategorija varijable CAEC: ", nlevels(CAEC_factor), "\n")
+cat("Kategorije varijable CAEC: ", levels(CAEC_factor), "\n\n")
+
+SMOKE_factor <- factor(podaci$SMOKE)
+podaci$SMOKE <- SMOKE_factor
+cat("Broj kategorija varijable SMOKE: ", nlevels(SMOKE_factor), "\n")
+cat("Kategorije varijable SMOKE: ", levels(SMOKE_factor), "\n\n")
+
+SCC_factor <- factor(podaci$SCC)
+podaci$SCC <- SCC_factor
+cat("Broj kategorija varijable SCC: ", nlevels(SCC_factor), "\n")
+cat("Kategorije varijable SCC: ", levels(SCC_factor), "\n\n")
+
+CALC_factor <- factor(podaci$CALC)
+podaci$CALC <- CALC_factor
+cat("Broj kategorija varijable CALC: ", nlevels(CALC_factor), "\n")
+cat("Kategorije varijable CALC: ", levels(CALC_factor), "\n\n")
+
+MTRANS_factor <- factor(podaci$MTRANS)
+podaci$MTRANS <- MTRANS_factor
+cat("Broj kategorija varijable MTRANS: ", nlevels(MTRANS_factor), "\n")
+cat("Kategorije varijable MTRANS: ", levels(MTRANS_factor), "\n\n")
+
+NObeyesdad_factor <- factor(podaci$NObeyesdad)
+podaci$NObeyesdad <- NObeyesdad_factor
+cat("Broj kategorija varijable NObeyesdad: ", nlevels(NObeyesdad_factor), "\n")
+cat("Kategorije varijable NObeyesdad: ", levels(NObeyesdad_factor), "\n\n")
+```
+
+```{r}
+#Numeričke varijable
+
+cat("Opseg vrijednosti varijable Age: ", range(podaci$Age), "\n\n")
+cat("Opseg vrijednosti varijable Height: ", range(podaci$Height), "\n\n")
+cat("Opseg vrijednosti varijable Weight: ", range(podaci$Weight), "\n\n")
+cat("Opseg vrijednosti varijable FCVC: ", range(podaci$FCVC), "\n\n")
+cat("Opseg vrijednosti varijable NCP: ", range(podaci$NCP), "\n\n")
+cat("Opseg vrijednosti varijable CH2O: ", range(podaci$CH2O), "\n\n")
+cat("Opseg vrijednosti varijable FAF: ", range(podaci$FAF), "\n\n")
+cat("Opseg vrijednosti varijable TUE: ", range(podaci$TUE), "\n\n")
+```
+
+### Distribucija podataka
+
+```{r}
+trimmed_mean <- function(vektor, p)
+{
+ vektor <- sort(vektor)
+ trimmed_vektor <- vektor[1 + p : length(vektor) - p]
+ return (sum(trimmed_vektor) / length(trimmed_vektor))
+}
+```
+
+```{r}
+#Varijabla Age
+cat("Mean vrijednost varijable Age: ", mean(podaci$Age), "\n")
+cat("Trimmed mean vrijednost varijable Age za p = 1: ", trimmed_mean(podaci$Age,1),"\n")
+cat("Trimmed mean vrijednost varijable Age za p = 10: ", trimmed_mean(podaci$Age,10),"\n")
+cat("Median vrijednos varijable Age: ", median(podaci$Age), "\n")
+cat("Opseg vrijednosti varijable Age: ", range(podaci$Age), "\n")
+cat("IQR vrijednost varijable Age: ", IQR(podaci$Age), "\n\n")
+cat("Summary za varijablu Age:\n")
+summary(podaci$Age)
+
+#Boxplot za varijablu Age
+df_tidy <- podaci %>%
+pivot_longer(cols=Age, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla Height
+cat("Mean vrijednost varijable Height: ", mean(podaci$Height), "\n")
+cat("Trimmed mean vrijednost varijable Height za p = 1: ", trimmed_mean(podaci$Height,1),"\n")
+cat("Trimmed mean vrijednost varijable Height za p = 10: ", trimmed_mean(podaci$Height,10),"\n")
+cat("Median vrijednos varijable Height: ", median(podaci$Height), "\n")
+cat("Opseg vrijednosti varijable Height: ", range(podaci$Height), "\n")
+cat("IQR vrijednost varijable Height: ", IQR(podaci$Height), "\n\n")
+cat("Summary za varijablu Height:\n")
+summary(podaci$Height)
+
+#Boxplot za varijablu Height
+df_tidy <- podaci %>%
+pivot_longer(cols=Height, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla Weight
+cat("Mean vrijednost varijable Weight: ", mean(podaci$Weight), "\n")
+cat("Trimmed mean vrijednost varijable Weight za p = 1: ", trimmed_mean(podaci$Weight,1),"\n")
+cat("Trimmed mean vrijednost varijable Weight za p = 10: ", trimmed_mean(podaci$Weight,10),"\n")
+cat("Median vrijednos varijable Weight: ", median(podaci$Weight), "\n")
+cat("Opseg vrijednosti varijable Weight: ", range(podaci$Weight), "\n")
+cat("IQR vrijednost varijable Weight: ", IQR(podaci$Weight), "\n\n")
+cat("Summary za varijablu Weight:\n")
+summary(podaci$Weight)
+
+#Boxplot za varijablu Weight
+df_tidy <- podaci %>%
+pivot_longer(cols=Weight, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla FCVC
+cat("Mean vrijednost varijable FCVC: ", mean(podaci$FCVC), "\n")
+cat("Trimmed mean vrijednost varijable FCVC za p = 1: ", trimmed_mean(podaci$FCVC,1),"\n")
+cat("Trimmed mean vrijednost varijable FCVC za p = 10: ", trimmed_mean(podaci$FCVC,10),"\n")
+cat("Median vrijednos varijable FCVC: ", median(podaci$FCVC), "\n")
+cat("Opseg vrijednosti varijable FCVC: ", range(podaci$FCVC), "\n")
+cat("IQR vrijednost varijable FCVC: ", IQR(podaci$FCVC), "\n\n")
+cat("Summary za varijablu FCVC:\n")
+summary(podaci$FCVC)
+
+#Boxplot za varijablu Weight
+df_tidy <- podaci %>%
+pivot_longer(cols=FCVC, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla NCP
+cat("Mean vrijednost varijable NCP: ", mean(podaci$NCP), "\n")
+cat("Trimmed mean vrijednost varijable NCP za p = 1: ", trimmed_mean(podaci$NCP,1),"\n")
+cat("Trimmed mean vrijednost varijable NCP za p = 10: ", trimmed_mean(podaci$NCP,10),"\n")
+cat("Median vrijednos varijable NCP: ", median(podaci$NCP), "\n")
+cat("Opseg vrijednosti varijable NCP: ", range(podaci$NCP), "\n")
+cat("IQR vrijednost varijable NCP: ", IQR(podaci$NCP), "\n\n")
+cat("Summary za varijablu NCP:\n")
+summary(podaci$NCP)
+
+#Boxplot za varijablu Weight
+df_tidy <- podaci %>%
+pivot_longer(cols=NCP, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla CH2O
+cat("Mean vrijednost varijable CH2O: ", mean(podaci$CH2O), "\n")
+cat("Trimmed mean vrijednost varijable CH2O za p = 1: ", trimmed_mean(podaci$CH2O,1),"\n")
+cat("Trimmed mean vrijednost varijable CH2O za p = 10: ", trimmed_mean(podaci$CH2O,10),"\n")
+cat("Median vrijednos varijable CH2O: ", median(podaci$CH2O), "\n")
+cat("Opseg vrijednosti varijable CH2O: ", range(podaci$CH2O), "\n")
+cat("IQR vrijednost varijable CH2O: ", IQR(podaci$CH2O), "\n\n")
+cat("Summary za varijablu CH2O:\n")
+summary(podaci$CH2O)
+
+#Boxplot za varijablu Weight
+df_tidy <- podaci %>%
+pivot_longer(cols=CH2O, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla FAF
+cat("Mean vrijednost varijable FAF: ", mean(podaci$FAF), "\n")
+cat("Trimmed mean vrijednost varijable FAF za p = 1: ", trimmed_mean(podaci$FAF,1),"\n")
+cat("Trimmed mean vrijednost varijable FAF za p = 10: ", trimmed_mean(podaci$FAF,10),"\n")
+cat("Median vrijednos varijable FAF: ", median(podaci$FAF), "\n")
+cat("Opseg vrijednosti varijable FAF: ", range(podaci$FAF), "\n")
+cat("IQR vrijednost varijable FAF: ", IQR(podaci$FAF), "\n\n")
+cat("Summary za varijablu FAF:\n")
+summary(podaci$FAF)
+
+#Boxplot za varijablu Weight
+df_tidy <- podaci %>%
+pivot_longer(cols=FAF, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+```{r}
+#Varijabla TUE
+cat("Mean vrijednost varijable TUE: ", mean(podaci$TUE), "\n")
+cat("Trimmed mean vrijednost varijable TUE za p = 1: ", trimmed_mean(podaci$TUE,1),"\n")
+cat("Trimmed mean vrijednost varijable TUE za p = 10: ", trimmed_mean(podaci$TUE,10),"\n")
+cat("Median vrijednos varijable TUE: ", median(podaci$TUE), "\n")
+cat("Opseg vrijednosti varijable TUE: ", range(podaci$TUE), "\n")
+cat("IQR vrijednost varijable TUE: ", IQR(podaci$TUE), "\n\n")
+cat("Summary za varijablu TUE:\n")
+summary(podaci$TUE)
+
+#Boxplot za varijablu Weight
+df_tidy <- podaci %>%
+pivot_longer(cols=TUE, values_to = "obs",names_to = "grp")
+plot <- ggplot(df_tidy, aes(x = grp, y = obs, fill = grp))
+plot + geom_boxplot(outlier.colour = "blue3", outlier.shape = 1, fill="lightblue")
+```
+
+### Zamjena outlier-a
+
+```{r}
+#Odbacivanje outlier-a kolone Age
+
+plot(podaci$Age, podaci$Age)
+
+median <- median(podaci$Age)
+for (i in 1 : length(podaci$Age))
+{
+ if(podaci$Age[i] > 40) {
+   podaci$Age[i] <- median
+ }
+}
+
+plot(podaci$Age, podaci$Age)
+```
+
+```{r}
+#Odbacivanje outlier-a kolone Height
+
+plot(podaci$Height, podaci$Height)
+
+median <- median(podaci$Height)
+for (i in 1 : length(podaci$Height))
+{
+ if(podaci$Height[i] > 1.97 | podaci$Height[i] < 1.48) {
+   podaci$Height[i] <- median
+ }
+}
+
+plot(podaci$Height, podaci$Height)
+```
+
+```{r}
+#Odbacivanje outlier-a kolone Weight
+
+plot(podaci$Weight, podaci$Weight)
+
+median <- median(podaci$Weight)
+for (i in 1 : length(podaci$Weight))
+{
+ if(podaci$Weight[i] >= 160) {
+   podaci$Weight[i] <- median
+ }
+}
+
+plot(podaci$Weight, podaci$Weight)
+```
+
+### Transformacija podataka
+
+```{r}
+#min-max
+
+max <- max(podaci$Age)
+min <- min(podaci$Age)
+podaci <- mutate(podaci, Age = (Age - min) / (max - min))
+
+max <- max(podaci$Height)
+min <- min(podaci$Height)
+podaci <- mutate(podaci, Height = (Height - min) / (max - min))
+
+max <- max(podaci$Weight)
+min <- min(podaci$Weight)
+podaci <- mutate(podaci, Weight = (Weight - min) / (max - min))
+
+```
+
+```{r}
+#z-score
+
+avg <- median(podaci$Age)
+std <- sd(podaci$Age)
+podaci <- mutate(podaci, Age = (Age - avg) / std)
+
+avg <- median(podaci$Height)
+std <- sd(podaci$Height)
+podaci <- mutate(podaci, Height = (Height - avg) / std)
+
+avg <- median(podaci$Weight)
+std <- sd(podaci$Weight)
+podaci <- mutate(podaci, Weight = (Weight - avg) / std)
+
+```
+
+```{r}
+#decimal scale
+
+max <- max(podaci$Age)
+j <- 0
+while (10 ** j < max)
+ j = j + 1
+podaci <- mutate(podaci, Age = Age / 10 ** j)
+
+max <- max(podaci$Height)
+j <- 0
+while (10 ** j < max)
+ j = j + 1
+podaci <- mutate(podaci, Height = Height / 10 ** j)
+
+max <- max(podaci$Weight)
+j <- 0
+while (10 ** j < max)
+ j = j + 1
+podaci <- mutate(podaci, Weight = Weight / 10 ** j)
+```
+
+### Tendencija klasterizacije
+
+```{r}
+#numericki atributi
+#plot(podaci[c("Age", "Height")], col = podaci$NObeyesdad)
+#plot(podaci[c("Age", "Weight")], col = podaci$NObeyesdad)
+#plot(podaci[c("Weight", "Height")], col = podaci$NObeyesdad)
+#plot(podaci[c("FCVC", "NCP")], col = podaci$NObeyesdad)
+#plot(podaci[c("CH2O", "FAF")], col = podaci$NObeyesdad)
+#plot(podaci[c("TUE", "FAF")], col = podaci$NObeyesdad)
+
+distance <- get_dist(podaci, method = "manhattan")
+fviz_dist(distance, gradient = list(low = "blue", mid = "white", high =
+"red"))
+```
+
+```{r}
+distance <- get_dist(podaci, method = "euclidean")
+fviz_dist(distance, gradient = list(low = "blue", mid = "white", high =
+"red"))
+
+```
+
+```{r}
+distance <- get_dist(podaci, method = "minkowski")
+fviz_dist(distance, gradient = list(low = "blue", mid = "white", high =
+"red"))
+
+```
+
+```{r}
+podaci$Gender <- as.numeric(podaci$Gender)
+podaci$family_history_with_overweight <- as.numeric(podaci$family_history_with_overweight)
+podaci$FAVC <- as.numeric(podaci$FAVC)
+podaci$CAEC <- as.numeric(podaci$CAEC)
+podaci$SMOKE <- as.numeric(podaci$SMOKE)
+podaci$SCC <- as.numeric(podaci$SCC)
+podaci$CALC <- as.numeric(podaci$CALC)
+podaci$MTRANS <- as.numeric(podaci$MTRANS)
+podaci$NObeyesdad <- as.numeric(podaci$NObeyesdad)
+
+distance <- get_dist(podaci, method = "pearson")
+fviz_dist(distance, gradient = list(low = "blue", mid = "white", high =
+"red"))
+```
+
+## b) PAM k-medoids
+
+### 
+
+```{r}
+#
+```
+
+### 
+
+```{r}
+#
+```
+
+### Manhattan distanca
+
+#### Kreiranje i validacija modela
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- pam(newdata, k = 4, metric = "manhattan")
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method ="manhattan"))
+cat("Srednja vrijednost silhouette metrike za PAM (manhattan metrika):",
+mean(sil[, 3]))
+fviz_silhouette(model)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+#classes[classes < 4] <- 1
+#classes[classes > 3] <- 2
+
+#k = 4
+classes[classes < 2] <- 1 # 1
+classes[classes < 4 & classes > 1] <- 2 # 2 i 3
+classes[classes > 3 & classes < 6] <- 3 # 4 i 5
+classes[classes > 5] <- 4 # 6 i 7
+
+#k=7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+#### Određivanje broja klastera
+
+```{r}
+fviz_nbclust(podaci, pam, method = "wss")
+#k = 4
+
+
+fviz_nbclust(podaci, pam, method = "silhouette")
+# k = 2, k = 4  i 6 vrijedno razmatranja
+
+
+fviz_nbclust(podaci, pam, method = "gap_stat", nboot = 2)
+#k = 10
+```
+
+### Euclidean distanca
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- pam(newdata, k = 7, metric = "euclidean")
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method ="euclidean"))
+cat("Srednja vrijednost silhouette metrike za PAM (euclidean metrika):",
+mean(sil[, 3]))
+fviz_silhouette(model)
+
+#cistoca klastera
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+```{r}
+#
+```
+
+## c) K-means
+
+### Osnovni model
+
+```{r}
+podaci$Gender <- as.numeric(podaci$Gender)
+podaci$family_history_with_overweight <- as.numeric(podaci$family_history_with_overweight)
+podaci$FAVC <- as.numeric(podaci$FAVC)
+podaci$CAEC <- as.numeric(podaci$CAEC)
+podaci$SMOKE <- as.numeric(podaci$SMOKE)
+podaci$SCC <- as.numeric(podaci$SCC)
+podaci$CALC <- as.numeric(podaci$CALC)
+podaci$MTRANS <- as.numeric(podaci$MTRANS)
+podaci$NObeyesdad <- as.numeric(podaci$NObeyesdad)
+
+```
+
+#### Kreiranje i validacija modela
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- kmeans(newdata, centers = 4)
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata))
+cat("Srednja vrijednost silhouette metrike za kmeans:", mean(sil[, 3]),
+"\n")
+plot(sil, border = NA)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+#classes[classes < 4] <- 1
+#classes[classes > 3] <- 2
+
+#k = 3
+#classes[classes < 3] <- 1 # 1 i 2
+#classes[classes < 6 & classes > 2] <- 2 # 3, 4 i 5
+#classes[classes > 5] <- 3 # 6 i 7
+
+#k = 4
+classes[classes < 2] <- 1 # 1
+classes[classes < 4 & classes > 1] <- 2 # 2 i 3
+classes[classes > 3 & classes < 6] <- 3 # 4 i 5
+classes[classes > 5] <- 4 # 6 i 7
+
+#k=7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+#### Određivanje broja klastera
+
+```{r}
+fviz_nbclust(podaci, kmeans, method = "wss")
+#k = 3 i 4
+
+
+fviz_nbclust(podaci, kmeans, method = "silhouette")
+# k = 2, k = 4 vrijedno razmatranja
+
+
+fviz_nbclust(podaci, kmeans, method = "gap_stat", nboot = 2)
+#k = 10 i k = 8
+```
+
+### Manhattan distanca
+
+#### Kreiranje i validacija modela
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- Kmeans(newdata, centers = 4, method = 'manhattan')
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method = "manhattan"))
+cat("Srednja vrijednost silhouette metrike za kmeans:", mean(sil[, 3]),
+"\n")
+plot(sil, border = NA)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+#classes[classes < 4] <- 1
+#classes[classes > 3] <- 2
+
+#k = 3
+#classes[classes < 3] <- 1 # 1 i 2
+#classes[classes < 6 & classes > 2] <- 2 # 3, 4 i 5
+#classes[classes > 5] <- 3 # 6 i 7
+
+#k = 4
+classes[classes < 2] <- 1 # 1
+classes[classes < 4 & classes > 1] <- 2 # 2 i 3
+classes[classes > 3 & classes < 6] <- 3 # 4 i 5
+classes[classes > 5] <- 4 # 6 i 7
+
+#k=7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+#### Određivanje broja klastera
+
+```{r}
+fviz_nbclust(podaci, Kmeans, method = "wss")
+#k = 4
+
+fviz_nbclust(podaci, Kmeans, method = "silhouette")
+# k = 2, k = 4 vrijedno razmatranja
+
+
+fviz_nbclust(podaci, Kmeans, method = "gap_stat", nboot = 2)
+#k = 10 i k = 8 vrijedno razmatranja
+```
+
+### Euclidean distanca
+
+#### Kreiranje i validacija modela
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- Kmeans(newdata, centers = 4, method = 'euclidean')
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method = "euclidean"))
+cat("Srednja vrijednost silhouette metrike za kmeans:", mean(sil[, 3]),
+"\n")
+plot(sil, border = NA)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+#classes[classes < 4] <- 1
+#classes[classes > 3] <- 2
+
+#k = 3
+#classes[classes < 3] <- 1 # 1 i 2
+#classes[classes < 6 & classes > 2] <- 2 # 3, 4 i 5
+#classes[classes > 5] <- 3 # 6 i 7
+
+#k = 4
+classes[classes < 2] <- 1 # 1
+classes[classes < 4 & classes > 1] <- 2 # 2 i 3
+classes[classes > 3 & classes < 6] <- 3 # 4 i 5
+classes[classes > 5] <- 4 # 6 i 7
+
+#k=7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+### Pearson distanca
+
+#### Kreiranje i validacija modela
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- Kmeans(newdata, centers = 4, method = 'pearson')
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method = "pearson"))
+cat("Srednja vrijednost silhouette metrike za kmeans:", mean(sil[, 3]),
+"\n")
+plot(sil, border = NA)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+#classes[classes < 4] <- 1
+#classes[classes > 3] <- 2
+
+#k = 3
+#classes[classes < 3] <- 1 # 1 i 2
+#classes[classes < 6 & classes > 2] <- 2 # 3, 4 i 5
+#classes[classes > 5] <- 3 # 6 i 7
+
+#k = 4
+classes[classes < 2] <- 1 # 1
+classes[classes < 4 & classes > 1] <- 2 # 2 i 3
+classes[classes > 3 & classes < 6] <- 3 # 4 i 5
+classes[classes > 5] <- 4 # 6 i 7
+
+#k=7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+### Canberra distanca
+
+#### Kreiranje i validacija modela
+
+```{r}
+newdata <- select(podaci, -NObeyesdad)
+
+model <- Kmeans(newdata, centers = 2, method = 'spearman')
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method = "spearman"))
+cat("Srednja vrijednost silhouette metrike za kmeans:", mean(sil[, 3]),
+"\n")
+plot(sil, border = NA)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+classes[classes < 4] <- 1
+classes[classes > 3] <- 2
+
+#k = 3
+#classes[classes < 3] <- 1 # 1 i 2
+#classes[classes < 6 & classes > 2] <- 2 # 3, 4 i 5
+#classes[classes > 5] <- 3 # 6 i 7
+
+#k = 4
+#classes[classes < 2] <- 1 # 1
+#classes[classes < 4 & classes > 1] <- 2 # 2 i 3
+#classes[classes > 3 & classes < 6] <- 3 # 4 i 5
+#classes[classes > 5] <- 4 # 6 i 7
+
+#k=7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+### PCA
+
+```{r}
+podaci$Gender <- as.numeric(factor(podaci$Gender))
+podaci$family_history_with_overweight <- as.numeric(factor(podaci$family_history_with_overweight))
+podaci$FAVC <- as.numeric(factor(podaci$FAVC))
+podaci$CAEC <- as.numeric(factor(podaci$CAEC))
+podaci$SMOKE <- as.numeric(factor(podaci$SMOKE))
+podaci$SCC <- as.numeric(factor(podaci$SCC))
+podaci$CALC <- as.numeric(factor(podaci$CALC))
+podaci$MTRANS <- as.numeric(factor(podaci$MTRANS))
+podaci$NObeyesdad <- as.numeric(factor(podaci$NObeyesdad))
+
+pca <- prcomp(subset(podaci, select = -c(NObeyesdad)), scale. = TRUE)
+```
+
+```{r}
+
+fviz_eig(pca)
+summary(pca)
+
+#uzimamo prvih 10
+```
+
+```{r}
+fviz_pca_var(pca,
+ col.var = "contrib",
+ gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+ repel = TRUE
+ )
+```
+
+```{r}
+newdata <- predict(pca, podaci)
+newdata <- newdata[, 1:10]
+newdata <- data.frame(newdata)
+```
+
+#### PAM medoids
+
+```{r}
+
+
+model <- pam(newdata, k = 2, metric = "manhattan")
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata, method ="manhattan"))
+cat("Srednja vrijednost silhouette metrike za PAM (manhattan metrika):",
+mean(sil[, 3]))
+fviz_silhouette(model)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+classes[classes < 4] <- 1
+classes[classes > 3] <- 2
+
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+#### K-means
+
+```{r}
+
+model <- Kmeans(newdata, centers = 2, method = 'manhattan')
+plot(podaci[c("Age", "Height")], col = model$cluster)
+plot(podaci[c("Weight","Height")], col =  model$cluster)
+fviz_cluster(model, data = podaci, geom = c('point'), ellipse.type="t")
+
+
+#VALIDACIJA
+
+sil <- silhouette(model$cluster, get_dist(newdata), method='manhattan')
+cat("Srednja vrijednost silhouette metrike za kmeans:", mean(sil[, 3]),
+"\n")
+plot(sil, border = NA)
+
+#cistoca klastera
+classes <- podaci$NObeyesdad
+
+#k = 2
+classes[classes < 4] <- 1
+classes[classes > 3] <- 2
+
+#k = 3
+#classes[classes < 3] <- 1 # 1 i 2
+#classes[classes < 6 & classes > 2] <- 2 # 3, 4 i 5
+#classes[classes > 5] <- 3 # 6 i 7
+
+purity <- purity(model$cluster, classes)
+cat("\n\n\nČistoća clusteringa:", purity$pur)
+```
+
+# Zadatak 2
+
+## Model 1 - fuzzy clustering
+
+```{r}
+model1 <- fanny(podaci, k = 2, stand = TRUE)
+fviz_cluster(model1, ellipse.type = "norm", repel = TRUE)
+model4 <- fanny(podaci, k = 3, stand = TRUE)
+fviz_cluster(model4, ellipse.type = "norm", repel = TRUE)
+model5 <- fanny(podaci, k = 4, stand = TRUE)
+fviz_cluster(model5, ellipse.type = "norm", repel = TRUE)
+model2 <- fanny(podaci, k = 7, stand = TRUE)
+fviz_cluster(model2, ellipse.type = "norm", repel = TRUE)
+```
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+```
+## Model 2
+
+```{r}
+```
+
+## Model 3
+
+```{r}
+```
+
+```{r}
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

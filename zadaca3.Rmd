@@ -11,6 +11,7 @@ library(cluster)
 library(factoextra)
 library(funtimes)
 library(amap)
+library(ClusterR)
 ```
 
 ## R Markdown
@@ -885,16 +886,59 @@ cat("\n\n\nČistoća clusteringa:", purity$pur)
 ## Model 1 - fuzzy clustering
 
 ```{r}
-model1 <- fanny(podaci, k = 2, stand = TRUE)
+model1 <- fanny(newdata, k = 2, stand = TRUE)
 fviz_cluster(model1, ellipse.type = "norm", repel = TRUE)
-model4 <- fanny(podaci, k = 3, stand = TRUE)
-fviz_cluster(model4, ellipse.type = "norm", repel = TRUE)
-model5 <- fanny(podaci, k = 4, stand = TRUE)
-fviz_cluster(model5, ellipse.type = "norm", repel = TRUE)
-model2 <- fanny(podaci, k = 7, stand = TRUE)
+model2 <- fanny(newdata, k = 3, stand = TRUE)
 fviz_cluster(model2, ellipse.type = "norm", repel = TRUE)
+model3 <- fanny(newdata, k = 4, stand = TRUE)
+fviz_cluster(model3, ellipse.type = "norm", repel = TRUE)
+model4<- fanny(newdata, k = 7, stand = TRUE)
+fviz_cluster(model4, ellipse.type = "norm", repel = TRUE)
 ```
+
+### Dunn indeks
+
 ```{r}
+cat("Dunn koeficijent particionisanja - model 1:", model1$coeff[1], "\n")
+cat("Dunn koeficijent particionisanja - model 2:", model2$coeff[1], "\n")
+cat("Dunn koeficijent particionisanja - model 3:", model3$coeff[1], "\n")
+cat("Dunn koeficijent particionisanja - model 4:", model4$coeff[1], "\n")
+
+```
+
+### Eksterna validacija - čistoća klasteringa
+
+```{r}
+#cistoca klastera
+classes <- podaci$NObeyesdad
+classes2 <- podaci$NObeyesdad
+classes3 <- podaci$NObeyesdad
+classes4 <- podaci$NObeyesdad
+
+#k = 2
+classes2[classes2 < 4] <- 1
+classes2[classes2 > 3] <- 2
+
+#k = 3
+classes3[classes3 < 3] <- 1 # 1 i 2
+classes3[classes3 < 6 & classes3 > 2] <- 2 # 3, 4 i 5
+classes3[classes3 > 5] <- 3 # 6 i 7
+
+#k = 4
+classes4[classes4 < 2] <- 1 # 1
+classes4[classes4 < 4 & classes4 > 1] <- 2 # 2 i 3
+classes4[classes4 > 3 & classes4 < 6] <- 3 # 4 i 5
+classes4[classes4 > 5] <- 4 # 6 i 7
+
+val1 <- external_validation(classes, model1$clustering, method = "purity")
+val2 <- external_validation(classes2, model2$clustering, method = "purity")
+val3 <- external_validation(classes3, model3$clustering, method = "purity")
+val4 <- external_validation(classes4, model4$clustering, method = "purity")
+
+cat("Čistoća clusteringa za model 1:", val1, "\n")
+cat("Čistoća clusteringa za model 2:", val2, "\n")
+cat("Čistoća clusteringa za model 3:", val3, "\n")
+cat("Čistoća clusteringa za model 4:", val4, "\n")
 ```
 
 ```{r}
@@ -903,8 +947,6 @@ fviz_cluster(model2, ellipse.type = "norm", repel = TRUE)
 ```{r}
 ```
 
-```{r}
-```
 ## Model 2
 
 ```{r}

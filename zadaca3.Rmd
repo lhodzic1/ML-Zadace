@@ -12,6 +12,9 @@ library(factoextra)
 library(funtimes)
 library(amap)
 library(ClusterR)
+library(fpc)
+library(dbscan)
+library(mclust)
 ```
 
 ## R Markdown
@@ -947,12 +950,170 @@ cat("Čistoća clusteringa za model 4:", val4, "\n")
 ```{r}
 ```
 
-## Model 2
+## Model 2 - dbscan
+
+```{r}
+#originalni podaci sa urađenim 1a)
+
+podaci$Gender <- as.numeric(factor(podaci$Gender))
+podaci$family_history_with_overweight <- as.numeric(factor(podaci$family_history_with_overweight))
+podaci$FAVC <- as.numeric(factor(podaci$FAVC))
+podaci$CAEC <- as.numeric(factor(podaci$CAEC))
+podaci$SMOKE <- as.numeric(factor(podaci$SMOKE))
+podaci$SCC <- as.numeric(factor(podaci$SCC))
+podaci$CALC <- as.numeric(factor(podaci$CALC))
+podaci$MTRANS <- as.numeric(factor(podaci$MTRANS))
+podaci$NObeyesdad <- as.numeric(factor(podaci$NObeyesdad))
+
+kNNdistplot(podaci, k = 5)
+abline(h = 0.15, lty = 2)
+```
+
+```{r}
+#originalni podaci sa urađenim 1a)
+modelscan_1a <- fpc::dbscan(podaci, eps = 2.5, scale = TRUE, MinPts = 5)
+fviz_cluster(modelscan_1a, data = podaci, geom = c('point'), ellipse.type="t")
+```
+
+```{r}
+#podaci nakon PCA
+kNNdistplot(newdata, k = 5)
+abline(h = 0.15, lty = 2)
+```
+
+```{r}
+#podaci nakon PCA
+modelscan_pca <- fpc::dbscan(newdata, eps = 2.5, scale = TRUE, MinPts = 5)
+fviz_cluster(modelscan_pca, data = newdata, geom = c('point'), ellipse.type="t")
+```
+
+```{r}
+#originalni podaci
+podaci$Gender <- as.numeric(factor(podaci$Gender))
+podaci$family_history_with_overweight <- as.numeric(factor(podaci$family_history_with_overweight))
+podaci$FAVC <- as.numeric(factor(podaci$FAVC))
+podaci$CAEC <- as.numeric(factor(podaci$CAEC))
+podaci$SMOKE <- as.numeric(factor(podaci$SMOKE))
+podaci$SCC <- as.numeric(factor(podaci$SCC))
+podaci$CALC <- as.numeric(factor(podaci$CALC))
+podaci$MTRANS <- as.numeric(factor(podaci$MTRANS))
+podaci$NObeyesdad <- as.numeric(factor(podaci$NObeyesdad))
+
+kNNdistplot(podaci, k = 5)
+abline(h = 0.15, lty = 2)
+```
+
+```{r}
+#originalni podaci
+modelscan_orig <- fpc::dbscan(podaci, eps = 4, scale = TRUE, MinPts = 5)
+fviz_cluster(modelscan_orig, data = podaci, geom = c('point'), ellipse.type="t")
+```
+
+### Eksterna validacija - čistoća klasteringa
+
+```{r}
+#Validacija modela sa originalnim podacima
+klasa <- podaci$NObeyesdad
+klasa[klasa < 3] <- 1 # 1 i 2
+klasa[klasa < 6 & klasa > 2] <- 2 # 3, 4 i 5
+klasa[klasa > 5] <- 3 # 6 i 7
+val1 <- external_validation(klasa, modelscan_orig$cluster, method
+= "purity", summary_stats = TRUE)
+```
+
+```{r}
+#Validacija modela nakon a)
+klasa <- podaci$NObeyesdad
+val2 <- external_validation(klasa, modelscan_1a$cluster, method
+= "purity", summary_stats = TRUE)
+```
+
+## 
+
+```{r}
+#Validacija modela nakon PCA
+klasa <- podaci$NObeyesdad
+klasa[klasa < 3] <- 1 # 1 i 2
+klasa[klasa < 6 & klasa > 2] <- 2 # 3, 4 i 5
+klasa[klasa > 5] <- 3 # 6 i 7
+val3 <- external_validation(klasa, modelscan_pca$cluster, method
+= "purity", summary_stats = TRUE)
+```
+
+## Model 3 - metode klasteringa zasnovane na modelu
+
+```{r}
+#Podaci nakon 1a)
+model_1a <- Mclust(podaci)
+fviz_mclust(model_1a, "classification", geom = "point", ellipse.type="t")
+```
+
+```{r}
+#Podaci nakon PCA
+model_pca <- Mclust(newdata)
+fviz_mclust(model_pca, "classification", geom = "point", ellipse.type="t")
+```
+
+```{r}
+#Originalni podaci
+model_orig <- Mclust(podaci)
+fviz_mclust(model_orig, "classification", geom = "point", ellipse.type="t")
+```
+
+### Evaluacija rezultata
+
+```{r}
+#Podaci nakon 1a
+fviz_mclust(model_1a, "BIC")
+fviz_mclust(model_1a, "uncertainty")
+```
+
+```{r}
+#Podaci nakon PCA
+fviz_mclust(model_pca, "BIC")
+fviz_mclust(model_pca, "uncertainty")
+```
+
+```{r}
+#Originalni podaci
+fviz_mclust(model_orig, "BIC")
+fviz_mclust(model_orig, "uncertainty")
+```
+
+### Eksterna validacija - čistoća klasteringa
+
+```{r}
+#Validacija nakon 1a
+klasa <- podaci$NObeyesdad
+val1 <- external_validation(klasa, model_1a$classification, method = "purity", summary_stats = TRUE)
+```
+
+```{r}
+#Validacija nakon pca
+klasa <- podaci$NObeyesdad
+val2 <- external_validation(klasa, model_pca$classification, method = "purity", summary_stats = TRUE)
+#cat("Čistoća clusteringa:", val2, "\n")
+```
+
+```{r}
+#Validacija originalni podaci
+klasa <- podaci$NObeyesdad
+klasa[klasa < 2] <- 1 # 1
+klasa[klasa < 4 & klasa > 1] <- 2 # 2 i 3
+klasa[klasa > 3 & klasa < 6] <- 3 # 4 i 5
+klasa[klasa > 5] <- 4 # 6 i 7
+val3 <- external_validation(klasa, model_orig$classification, method = "purity", summary_stats = TRUE)
+#cat("Čistoća clusteringa:", val3, "\n")
+```
 
 ```{r}
 ```
 
-## Model 3
+```{r}
+```
+
+```{r}
+```
 
 ```{r}
 ```
